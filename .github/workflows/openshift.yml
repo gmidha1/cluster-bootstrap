@@ -206,7 +206,7 @@ jobs:
 
   aro-ci-cd:
     # 🖊️ Uncomment this if you are using CRDA scan step above
-    # needs: crda-scan
+    needs: rosa-ci-cd
     name: ARO - Install Operators in OpenShift and Deploy Model in RHOAI
     runs-on: ubuntu-22.04
     environment: production
