@@ -320,7 +320,7 @@ jobs:
         oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/nvidia-gpu/subs.yaml
         sleep 60
         oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/nvidia-gpu/cluster-policy.yaml
-        sleep 60
+        sleep 120
         echo "Configuring RHOAI and deploying Models"
         oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/model-deploy/rbac-job-enable-modelcar.yaml
         sleep 20
