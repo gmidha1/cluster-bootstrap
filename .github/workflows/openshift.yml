@@ -156,29 +156,38 @@ jobs:
       run: |
         oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/project.yaml
         sleep 10
+        echo "Installing Minio"
         oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/s3.yaml 
+        echo "Installing ElasticSearch"
         oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/elastic/subs.yaml
         sleep 30
+        echo "Installing OpenShift GitOps"
         oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/openshift-gitops/ns.yaml
         sleep 20
         oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/openshift-gitops/openshift-gitops-og.yaml
         sleep 20
         oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/openshift-gitops/openshift-gitops-subs.yaml
+        echo "Installing ServiceMesh"
         oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/servicemesh/subs.yaml
+        echo "Installing Serverless"
         oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/serverless/ns.yaml
         sleep 20
         oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/serverless/og.yaml
         sleep 20
         oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/serverless/subs.yaml
+        echo "Installing Red Hat OpenShift AI(RHOAI)"
         oc apply -k ${GITHUB_WORKSPACE}/deploy/openshift/operators/rhoai/
+        echo "Installing Node Feature Discovery Operator"
         oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/nfd/ns.yaml
         sleep 20
         oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/nfd/og.yaml
         sleep 20
         oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/nfd/subs.yaml
-        sleep 20
+        sleep 240
         oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/nfd/nfd-instance.yaml
+        echo "Creating Data Science Cluster in RHOAI"
         oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/rhoai/dsc.yaml
+        echo "Installing Nvidia GPU"
         oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/nvidia-gpu/ns.yaml
         sleep 20
         oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/nvidia-gpu/og.yaml
@@ -186,6 +195,10 @@ jobs:
         oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/nvidia-gpu/subs.yaml
         sleep 60
         oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/nvidia-gpu/cluster-policy.yaml
+        sleep 60
+        echo "Configuring RHOAI and deploying Models"
+        oc apply -k ${GITHUB_WORKSPACE}/deploy/openshift/model-deploy/
+        echo "Installation Completes"
 
   aro-ci-cd:
     # 🖊️ Uncomment this if you are using CRDA scan step above
