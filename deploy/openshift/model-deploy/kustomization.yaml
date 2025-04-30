@@ -1,0 +1,21 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+commonLabels:
+  component: elastic-vector
+
+resources:
+  # presync
+  #- presync-rhoai-ready.yaml
+  #- presync-inferenceservice.yaml
+  # wave 0
+  #- ns.yaml
+  - accelerator-profile.yaml
+  # wave 1
+  - servingruntime.yaml
+  # wave 2
+  - inference.yaml
+  #- pvc-hftgi.yaml
+  #- deployment-hftgi.yaml
+  #- service-hftgi.yaml
