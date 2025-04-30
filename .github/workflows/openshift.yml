@@ -149,7 +149,7 @@ jobs:
         namespace: ${{ env.OPENSHIFT_NAMESPACE }} 
         
     
-    - name: Apply yaml files
+    - name: Install Operators and Deploy Model Server in RHOAI
       env:
         minio_user: ${{ secrets.MINIO_ROOT_USER }}
         minio_password: ${{ secrets.MINIO_ROOT_PASSWORD }} 
@@ -197,13 +197,17 @@ jobs:
         oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/nvidia-gpu/cluster-policy.yaml
         sleep 60
         echo "Configuring RHOAI and deploying Models"
+        oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/model-deploy/rbac-job-enable-modelcar.yaml
+        sleep 20
+        oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/model-deploy/job-enable-modelcar.yaml
+        sleep 360
         oc apply -k ${GITHUB_WORKSPACE}/deploy/openshift/model-deploy/
         echo "Installation Completes"
 
   aro-ci-cd:
     # 🖊️ Uncomment this if you are using CRDA scan step above
     # needs: crda-scan
-    name: ARO - Build and deploy to OpenShift
+    name: ARO - Install Operators in OpenShift and Deploy Model in RHOAI
     runs-on: ubuntu-22.04
     environment: production
 
@@ -318,6 +322,10 @@ jobs:
         oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/nvidia-gpu/cluster-policy.yaml
         sleep 60
         echo "Configuring RHOAI and deploying Models"
+        oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/model-deploy/rbac-job-enable-modelcar.yaml
+        sleep 20
+        oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/model-deploy/job-enable-modelcar.yaml
+        sleep 360
         oc apply -k ${GITHUB_WORKSPACE}/deploy/openshift/model-deploy/
         echo "Installation Completes"
 
