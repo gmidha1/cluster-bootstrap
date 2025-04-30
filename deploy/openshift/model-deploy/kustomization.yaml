@@ -11,7 +11,10 @@ resources:
   #- presync-inferenceservice.yaml
   # wave 0
   #- ns.yaml
+  - rbac-job-enable-modelcar.yaml
   - accelerator-profile.yaml
+  - job-enable-modelcar.yaml
+  - odhdashboardconfig.yaml
   # wave 1
   - servingruntime.yaml
   # wave 2
