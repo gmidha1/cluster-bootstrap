@@ -36,8 +36,8 @@ env:
   MINIO_PASSWORD: ${{ secrets.MINIO_ROOT_PASSWORD }}
   ARO_SERVER: ${{ secrets.ARO_SERVER }}
   ARO_TOKEN: ${{ secrets.ARO_TOKEN }}
-  #GCP_SERVER: ${{ secrets.GCP_SERVER }}
-  #GCP_TOKEN: ${{ secrets.GCP_TOKEN }}
+  GCP_SERVER: ${{ secrets.GCP_SERVER }}
+  GCP_TOKEN: ${{ secrets.GCP_TOKEN }}
   # 🖊️ EDIT to set the kube context's namespace after login. Leave blank to use your user's default namespace.
   OPENSHIFT_NAMESPACE: ""
 
@@ -63,7 +63,7 @@ on:
   workflow_dispatch:
   push:
     # Edit to the branch(es) you want to build and deploy on each push.
-    branches: [ "main" ]
+    branches: [ "add-gcp" ]
 
 jobs:
   # 🖊️ EDIT if you want to run vulnerability check on your project before deploying
@@ -206,7 +206,7 @@ jobs:
 
   aro-ci-cd:
     # 🖊️ Uncomment this if you are using CRDA scan step above
-    needs: rosa-ci-cd
+    #needs: rosa-ci-cd
     name: ARO - Install Operators in OpenShift and Deploy Model in RHOAI
     runs-on: ubuntu-22.04
     environment: production
@@ -270,6 +270,131 @@ jobs:
       with:
         openshift_server_url: ${{ env.ARO_SERVER }}
         openshift_token: ${{ env.ARO_TOKEN }}
+        insecure_skip_tls_verify: true
+        namespace: ${{ env.OPENSHIFT_NAMESPACE }} 
+        
+    
+    - name: Install Operators and Deploy Model Server in RHOAI
+      env:
+        minio_user: ${{ secrets.MINIO_ROOT_USER }}
+        minio_password: ${{ secrets.MINIO_ROOT_PASSWORD }} 
+      run: |
+        oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/project.yaml
+        sleep 10
+        echo "Installing Minio"
+        oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/s3.yaml 
+        echo "Installing ElasticSearch"
+        oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/elastic/subs.yaml
+        sleep 30
+        echo "Installing OpenShift GitOps"
+        oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/openshift-gitops/ns.yaml
+        sleep 20
+        oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/openshift-gitops/openshift-gitops-og.yaml
+        sleep 20
+        oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/openshift-gitops/openshift-gitops-subs.yaml
+        echo "Installing ServiceMesh"
+        oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/servicemesh/subs.yaml
+        echo "Installing Serverless"
+        oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/serverless/ns.yaml
+        sleep 20
+        oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/serverless/og.yaml
+        sleep 20
+        oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/serverless/subs.yaml
+        echo "Installing Red Hat OpenShift AI(RHOAI)"
+        oc apply -k ${GITHUB_WORKSPACE}/deploy/openshift/operators/rhoai/
+        echo "Installing Node Feature Discovery Operator"
+        oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/nfd/ns.yaml
+        sleep 20
+        oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/nfd/og.yaml
+        sleep 20
+        oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/nfd/subs.yaml
+        sleep 240
+        oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/nfd/nfd-instance.yaml
+        echo "Creating Data Science Cluster in RHOAI"
+        oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/rhoai/dsc.yaml
+        echo "Installing Nvidia GPU"
+        oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/nvidia-gpu/ns.yaml
+        sleep 20
+        oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/nvidia-gpu/og.yaml
+        sleep 20
+        oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/nvidia-gpu/subs.yaml
+        sleep 60
+        oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/operators/nvidia-gpu/cluster-policy.yaml
+        sleep 120
+        echo "Configuring RHOAI and deploying Models"
+        oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/model-deploy/rbac-job-enable-modelcar.yaml
+        sleep 20
+        oc apply -f ${GITHUB_WORKSPACE}/deploy/openshift/model-deploy/job-enable-modelcar.yaml
+        sleep 360
+        oc apply -k ${GITHUB_WORKSPACE}/deploy/openshift/model-deploy/
+        echo "Installation Completes"
+
+  gcp-ci-cd:
+    # 🖊️ Uncomment this if you are using CRDA scan step above
+    #needs: aro-ci-cd
+    name: GCP - Install Operators in OpenShift and Deploy Model in RHOAI
+    runs-on: ubuntu-22.04
+    environment: production
+
+    outputs:
+      ROUTE: ${{ steps.deploy-and-expose.outputs.route }}
+      SELECTOR: ${{ steps.deploy-and-expose.outputs.selector }}
+      MSVC_IMAGE: ${{ steps.push-image.outputs.registry-path }}
+      FEND_IMAGE: ${{ steps.push-image-frontend.outputs.registry-path }}
+
+    steps:
+    - name: Check for required secrets
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const secrets = {
+            OPENSHIFT_SERVER: `${{ secrets.OPENSHIFT_SERVER }}`,
+            OPENSHIFT_TOKEN: `${{ secrets.OPENSHIFT_TOKEN }}`,
+          };
+
+          const GHCR = "ghcr.io";
+          if (`${{ env.IMAGE_REGISTRY }}`.startsWith(GHCR)) {
+            core.info(`Image registry is ${GHCR} - no registry password required`);
+          }
+          else {
+            core.info("A registry password is required");
+            secrets["IMAGE_REGISTRY_PASSWORD"] = `${{ secrets.IMAGE_REGISTRY_PASSWORD }}`;
+          }
+
+          const missingSecrets = Object.entries(secrets).filter(([ name, value ]) => {
+            if (value.length === 0) {
+              core.error(`Secret "${name}" is not set`);
+              return true;
+            }
+            core.info(`✔️ Secret "${name}" is set`);
+            return false;
+          });
+
+          if (missingSecrets.length > 0) {
+            core.setFailed(`❌ At least one required secret is not set in the repository. \n` +
+              "You can add it using:\n" +
+              "GitHub UI: https://docs.github.com/en/actions/reference/encrypted-secrets#creating-encrypted-secrets-for-a-repository \n" +
+              "GitHub CLI: https://cli.github.com/manual/gh_secret_set \n" +
+              "Also, refer to https://github.com/redhat-actions/oc-login#getting-started-with-the-action-or-see-example");
+          }
+          else {
+            core.info(`✅ All the required secrets are set`);
+          }
+
+    - name: Check out repository
+      uses: actions/checkout@v3
+
+    - name: Determine app name
+      if: env.APP_NAME == ''
+      run: |
+        echo "APP_NAME=$(basename $PWD)" | tee -a $GITHUB_ENV
+
+    # https://github.com/redhat-actions/oc-login#readme
+    - name: Log in to OpenShift
+      uses: redhat-actions/oc-login@v1
+      with:
+        openshift_server_url: ${{ env.GCP_SERVER }}
+        openshift_token: ${{ env.GCP_TOKEN }}
         insecure_skip_tls_verify: true
         namespace: ${{ env.OPENSHIFT_NAMESPACE }} 
         
